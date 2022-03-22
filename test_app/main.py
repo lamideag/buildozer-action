@@ -3,6 +3,7 @@ Simple Hello World app to test Buildozer Action.
 
 It builds Kivy app with file main.kv.
 """
+import time
 
 from kivy.app import App
 from kivy.lang import Builder
