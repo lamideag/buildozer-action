@@ -1,17 +1,19 @@
-"""
-Simple Hello World app to test Buildozer Action.
+""
+Hello World Simple app for testing Buildozer Action.
 
-It builds Kivy app with file main.kv.
-"""
+Creates a Kivy application using the main.kv file.
+""
 
-from kivy.app import App
-from kivy.lang import Builder
-
-
-class MainApp(App):
-    def build(self):
-        return Builder.load_file("main.kv")
+From the import application kivy.app
+From kivy.lang import constructor
 
 
-if __name__ == "__main__":
+
+
+Main application class (application):
+    Defensive construction (self):
+        Return Builder.load_file("main.kv")
+
+
+If __name__ == "__main__":
     MainApp().run()
