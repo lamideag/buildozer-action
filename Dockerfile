@@ -1,9 +1,17 @@
-FROM kivy/buildozer:latest
+FROM ghcr.io/kivy/buildozer:latest
 # See https://github.com/kivy/buildozer/blob/master/Dockerfile
 
 # Buildozer will be installed in entrypoint.py
 # This is needed to install version specified by user
 RUN pip3 uninstall -y buildozer
+
+# Get the latest JDK version as Buildozer requires the latest version to build the APK
+RUN sudo apt-get update && \
+    sudo apt-get install -y software-properties-common && \
+    sudo rm -rf /var/lib/apt/lists/*
+RUN sudo add-apt-repository ppa:openjdk-r/ppa
+RUN sudo apt update
+RUN sudo apt-get -y install openjdk-17-jdk
 
 # Remove a lot of warnings
 # sudo: setrlimit(RLIMIT_CORE): Operation not permitted

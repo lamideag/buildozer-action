@@ -152,7 +152,15 @@ def set_output(repository_root, workdir):
     path = os.path.normpath(
         os.path.join(repository_root, workdir, "bin", filename)
     )
-    print(f"::set-output name=filename::{path}")
+    # Run with sudo to have access to GITHUB_OUTPUT file
+    subprocess.check_call(
+        [
+            "sudo",
+            "bash",
+            "-c",
+            f"echo 'filename={path}' >> {os.environ['GITHUB_OUTPUT']}",
+        ]
+    )
 
 
 if __name__ == "__main__":
