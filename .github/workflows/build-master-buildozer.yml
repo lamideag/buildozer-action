@@ -1,51 +1,28 @@
-name: Diagnose Buildozer Build
+name: Build Kivy APK
 
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches:
+      - main
 
 jobs:
-  build-android:
-    runs-on: ubuntu-22.04
-    env:
-      WORKDIR: test_app
-      APP_ANDROID_ACCEPT_SDK_LICENSE: "1"
-      BUILDOZER_WARN_ON_ROOT: "0"
+  build-apk:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      # 1️⃣ استيراد ملفات المشروع
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ تشغيل الحاوية الجاهزة لبناء APK
+      - name: Build APK using existing Docker container
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/app lamideag-buildozer \
+          bash -c "cd /app && buildozer android debug"
+
+      # 3️⃣ رفع APK كـ artifact لتتمكن من تحميله
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
         with:
-          fetch-depth: 0
-
-      - name: Install deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-pip python3-dev build-essential git unzip zip curl ca-certificates openjdk-17-jdk-headless libssl-dev libffi-dev zlib1g-dev libbz2-dev liblzma-dev libsqlite3-dev libncurses-dev
-          python3 -m pip install --upgrade pip setuptools wheel
-          sudo python3 -m pip install --upgrade cython buildozer
-
-      - name: Print environment
-        run: |
-          echo "PYTHON: $(python3 --version)"
-          echo "Buildozer: $(buildozer --version || true)"
-          echo "Cython: $(cython --version || true)"
-          java -version || true
-
-      - name: Build (print full logs)
-        working-directory: ${{ env.WORKDIR }}
-        run: |
-          set -o pipefail
-          buildozer android debug --log-level=2 2>&1 | tee full-buildozer.log
-          rc=${PIPESTATUS[0]}
-          echo "EXIT CODE: $rc"
-          cat full-buildozer.log
-          exit $rc
-
-      - name: Upload full log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: full-buildozer-log
-          path: full-buildozer.log
+          name: MyApp-APK
+          path: test_app/bin/*.apk
