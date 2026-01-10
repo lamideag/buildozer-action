@@ -31,7 +31,12 @@ jobs:
           restore-keys: |
             buildozer-${{ runner.os }}-
 
-      # 3️⃣ Show cache contents for debugging
+      # 3️⃣ Build Docker image (if you need to build the Docker image first)
+      - name: Build Docker image
+        run: |
+          docker build -t lamideag-buildozer .
+
+      # 4️⃣ Show cache contents for debugging
       - name: Show cache contents (debug)
         run: |
           echo "HOME=$HOME"
@@ -39,7 +44,7 @@ jobs:
           ls -la test_app/.buildozer || true
           du -sh $HOME/.buildozer || true
 
-      # 4️⃣ Build APK using Buildozer in Docker
+      # 5️⃣ Build APK using Docker (mount caches into container)
       - name: Build APK using Docker (mount caches into container)
         run: |
           # mount runner ~/.buildozer into container /root/.buildozer
@@ -52,9 +57,8 @@ jobs:
             -v ${{ github.workspace }}:/app \
             lamideag-buildozer \
             bash -lc "cd /app && buildozer android debug"
-        # ملاحظة: $HOME في runner يعادل /home/runner
 
-      # 5️⃣ Upload APK as artifact
+      # 6️⃣ Upload APK as artifact
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
