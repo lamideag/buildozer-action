@@ -7,41 +7,27 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    env:
-      WORKDIR: test_app
 
     steps:
+      # 1️⃣ استيراد ملفات المشروع
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Cache buildozer & pip & local
-        uses: actions/cache@v3
+      # 2️⃣ بناء الـ APK باستخدام Buildozer
+      - name: Build with Buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
         with:
-          path: |
-            ~/.buildozer
-            test_app/.buildozer
-            ~/.local
-            ~/.cache/pip
-          key: buildozer-${{ runner.os }}-${{ hashFiles('test_app/buildozer.spec') }}
-          restore-keys: |
-            buildozer-${{ runner.os }}-
+          workdir: test_app  # تأكد من أن المسار صحيح للمجلد الذي يحتوي على buildozer.spec
+          buildozer_version: stable  # تأكد من استخدام الإصدار الصحيح
 
-      - name: Show cache contents (debug)
-        run: |
-          echo "HOME=$HOME"
-          ls -la $HOME/.buildozer || true
-          ls -la test_app/.buildozer || true
-          du -sh $HOME/.buildozer || true
+      # 3️⃣ رفع الـ APK كـ Artifact
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildozer-artifacts  # يمكنك تغيير الاسم إذا أردت
+          path: test_app/bin/*.apk  # تأكد من أن المسار صحيح
 
-      - name: Build APK using Docker (mount caches into container)
-        run: |
-          docker run --rm \
-            -v $HOME/.buildozer:/root/.buildozer \
-            -v $HOME/.local:/root/.local \
-            -v $HOME/.cache/pip:/root/.cache/pip \
-            -v ${{ github.workspace }}:/app \
-            lamideag-buildozer \
-            bash -lc "cd /app && buildozer android debug"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
