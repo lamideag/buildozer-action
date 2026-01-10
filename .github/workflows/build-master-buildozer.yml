@@ -14,14 +14,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ تشغيل الحاوية الجاهزة لبناء APK
+      # 2️⃣ إضافة خطوة لتخزين الـ cache
+      - name: Cache Buildozer
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.buildozer
+            test_app/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('test_app/buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+
+      # 3️⃣ تشغيل الحاوية الجاهزة لبناء APK
       - name: Build APK using existing Docker container
         run: |
           docker run --rm -v ${{ github.workspace }}:/app lamideag-buildozer \
           bash -c "cd /app && buildozer android debug"
-          
 
-      # 3️⃣ رفع APK كـ artifact لتتمكن من تحميله
+      # 4️⃣ رفع APK كـ artifact لتتمكن من تحميله
       - name: Upload APK
         uses: actions/upload-artifact@v3
         with:
