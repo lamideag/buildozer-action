@@ -1,4 +1,4 @@
-name: Build Android APK (Persistent Cache + Fixed Build)
+name: Build Android APK (Fix Cython + Cache)
 
 on:
   push:
@@ -14,143 +14,45 @@ jobs:
       BUILDOZER_WARN_ON_ROOT: "0"
 
     steps:
-      # ----------------- 0) Checkout -----------------
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      # ----------------- 1) Global cache -----------------
-      - name: Restore global cache (SDK/NDK/Buildozer/Gradle/.local)
-        id: cache-global
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.buildozer
-            ~/.gradle
-            ~/.local
-          key: buildozer-global-v1-${{ runner.os }}
-          restore-keys: |
-            buildozer-global-v1-${{ runner.os }}-
-            buildozer-global-${{ runner.os }}-
-
-      # ----------------- 2) Per-spec cache -----------------
-      - name: Restore pip cache (per-spec)
-        id: cache-pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('**/buildozer.spec') }}
-          restore-keys: |
-            pip-${{ runner.os }}-
-
-      # ----------------- 3) Print cache debug -----------------
-      - name: Print cache hit info and directories
-        run: |
-          echo "CACHE-GLOBAL-HIT=${{ steps.cache-global.outputs.cache-hit }}"
-          echo "CACHE-PIP-HIT=${{ steps.cache-pip.outputs.cache-hit }}"
-          echo "---- ~/.buildozer (trimmed) ----"
-          if [ -d "$HOME/.buildozer" ]; then
-            find "$HOME/.buildozer" -maxdepth 2 -type d -print | head -n 60
-            du -sh "$HOME/.buildozer"
-          else
-            echo "~/.buildozer missing"
-          fi
-          echo "---- ~/.gradle wrapper dists ----"
-          ls -la ~/.gradle/wrapper/dists || true
-          du -sh ~/.gradle || true
-          echo "---- ~/.local/bin ----"
-          ls -la ~/.local/bin || true
-
-      # ----------------- 4) Setup JDK & Python -----------------
-      - name: Setup JDK 17
+      - name: Setup Python & JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Python 3.10
-        uses: actions/setup-python@v4
+      - name: Setup Python
+        uses: actions/setup-python@v2
         with:
           python-version: '3.10'
 
-      # ----------------- 5) Install system deps -----------------
-      - name: Install minimal system deps
+      - name: Install System Dependencies
         run: |
           sudo apt-get update --fix-missing
-          sudo apt-get install -y --no-install-recommends \
-            python3-pip python3-dev build-essential git unzip zip curl ca-certificates \
-            openjdk-17-jdk-headless autoconf automake libtool m4 pkg-config \
-            libssl-dev libffi-dev zlib1g-dev libbz2-dev liblzma-dev \
-            libsqlite3-dev libncurses-dev
-          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get install -y python3-pip python3-dev build-essential git unzip zip ca-certificates openjdk-17-jdk-headless libssl-dev libffi-dev zlib1g-dev
 
-      # ----------------- 6) Install Cython & Buildozer system-wide -----------------
-      - name: Install Cython & Buildozer
+      - name: Install Cython and Buildozer
         run: |
           python3 -m pip install --upgrade pip setuptools wheel
-          sudo python3 -m pip install --upgrade "cython==0.29.33" buildozer
-
-      - name: Verify Cython & Buildozer
-        run: |
+          sudo python3 -m pip install --upgrade cython==0.29.33 buildozer
+          # Link cython3 to cython so Buildozer finds it
+          sudo ln -sf /usr/bin/cython3 /usr/local/bin/cython
           which cython
-          cython --version || true
-          which buildozer
-          buildozer --version || true
+          cython --version
 
-      # ----------------- 7) Ensure buildozer.spec has pinned Android SDK -----------------
-      - name: Ensure fixed Android versions in buildozer.spec
-        run: |
-          SPEC="${GITHUB_WORKSPACE}/${{ env.WORKDIR }}/buildozer.spec"
-          if [ -f "$SPEC" ]; then
-            sed -i '/^android.api/ d' "$SPEC"
-            sed -i '/^android.minapi/ d' "$SPEC"
-            sed -i '/^android.sdk/ d' "$SPEC"
-            sed -i '/^android.ndk/ d' "$SPEC"
-            sed -i '/^android.build_tools_version/ d' "$SPEC"
-            printf '\n# Pinned by CI\nandroid.api = 31\nandroid.minapi = 21\nandroid.sdk = 33\nandroid.ndk = 25b\nandroid.build_tools_version = 33.0.2\n' >> "$SPEC"
-            tail -n 10 "$SPEC"
-          else
-            echo "buildozer.spec not found!"
-          fi
-
-      # ----------------- 8) Build APK -----------------
-      - name: Build APK (reuse cache)
+      - name: Build APK
         working-directory: ${{ env.WORKDIR }}
         run: |
           set -o pipefail
-          echo "Contents of ~/.buildozer before build:"
-          ls -la ~/.buildozer || true
-          du -sh ~/.buildozer || true
-          buildozer -v android debug --no-clean --log-level=2 2>&1 | tee buildozer-output.log
+          buildozer -v android debug --no-clean --log-level=2 2>&1 | tee full-buildozer.log
           rc=${PIPESTATUS[0]}
-          echo "BUILD_EXIT_CODE=$rc" >> $GITHUB_OUTPUT
-          if [ "$rc" -ne 0 ]; then
-            echo "Build failed. Dumping log:"
-            tail -n 400 buildozer-output.log
-            grep -n -E "ERROR|Failed|Traceback|Exception" buildozer-output.log || true
-            exit $rc
-          fi
+          cat full-buildozer.log
+          exit $rc
 
-      # ----------------- 9) Find APKs -----------------
-      - name: Find APKs
-        id: find_apks
-        run: |
-          find . -type f \( -iname "*.apk" -o -iname "*.aab" \) -print > /tmp/apks.txt || true
-          if [ -s /tmp/apks.txt ]; then
-            echo "artifact_path=$(head -n 1 /tmp/apks.txt)" >> $GITHUB_OUTPUT
-          fi
-
-      # ----------------- 10) Upload artifacts -----------------
-      - name: Upload logs & APKs
+      - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: buildozer-artifacts
-          path: |
-            buildozer-output.log
-            ~/.buildozer/**
-            ~/.gradle/**
-            **/*.apk
-            **/*.aab
-          if-no-files-found: warn
+          name: buildozer-log
+          path: full-buildozer.log
