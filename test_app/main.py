@@ -1,18 +1,9 @@
-"""
-Simple Hello World app to test Buildozer Action.
-
-It builds Kivy app with file main.kv.
-"""
-
 from kivy.app import App
-from kivy.lang import Builder
-print("hello")
+from kivy.uix.label import Label
 
-
-class MainApp(App):
+class MyApp(App):
     def build(self):
-        return Builder.load_file("main.kv")
-
+        return Label(text="Updated from Android app")
 
 if __name__ == "__main__":
-    MainApp().run()
+    MyApp().run()
