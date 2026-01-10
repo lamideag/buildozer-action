@@ -1,12 +1,7 @@
-# ==========================
-# Dockerfile لبناء تطبيقات Kivy/Buildozer
-# ==========================
-
+# بناء الصورة باستخدام Ubuntu
 FROM ubuntu:22.04
 
-# --------------------------
-# إعداد المتطلبات الأساسية
-# --------------------------
+# تثبيت الأدوات الأساسية
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
@@ -34,26 +29,18 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     libncursesw5-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# --------------------------
 # إنشاء بيئة افتراضية لتثبيت Buildozer
-# --------------------------
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# --------------------------
-# تعطيل التحقق من الجذر في Buildozer
-# --------------------------
+# تعطيل التحذير حول العمل كـ root
 ENV BUILD_ROOT=1
 
-# --------------------------
-# تثبيت Buildozer داخل البيئة الافتراضية
-# --------------------------
+# تثبيت Buildozer
 RUN pip install --upgrade pip && \
     pip install buildozer
 
-# --------------------------
-# تنزيل Android SDK Command line tools
-# --------------------------
+# تنزيل أدوات Android SDK
 RUN mkdir -p /opt/android-sdk/cmdline-tools
 WORKDIR /opt/android-sdk/cmdline-tools
 RUN wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O cmdline-tools.zip && \
@@ -61,30 +48,25 @@ RUN wget https://dl.google.com/android/repository/commandlinetools-linux-8512546
     mv cmdline-tools latest && \
     rm cmdline-tools.zip
 
-# --------------------------
-# إعداد متغيرات البيئة
-# --------------------------
+# إعداد متغيرات البيئة لـ Android SDK
 ENV ANDROID_SDK_ROOT=/opt/android-sdk
 ENV PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH
 
-# --------------------------
 # قبول تراخيص SDK
-# --------------------------
 RUN yes | sdkmanager --licenses
 
-# --------------------------
-# تثبيت أدوات SDK المطلوبة
-# --------------------------
+# تثبيت الأدوات المطلوبة
 RUN sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0" "ndk;25.2.9519653"
 
-# --------------------------
-# تحديد مجلد المشروع داخل الحاوية
-# --------------------------
+# إنشاء مستخدم غير جذر
+RUN useradd -m builduser
+USER builduser
+
+# تحديد مجلد العمل للمشروع
 WORKDIR /app
 
-# --------------------------
-# نسخة اختبارية: Buildozer يعمل الآن داخل الحاوية
-# --------------------------
-# مثال:
-# docker build -t buildozer-android .
-# docker run --rm -v /path/to/your/project:/app buildozer-android buildozer android debug
+# نسخ المشروع إلى الحاوية
+COPY . /app
+
+# تنفيذ Buildozer
+ENTRYPOINT ["buildozer", "android", "debug"]
