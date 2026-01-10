@@ -2,40 +2,53 @@ name: Build Kivy APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    
-    
+    env:
+      WORKDIR: test_app
 
     steps:
-      # 1️⃣ استيراد ملفات المشروع
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      # 2️⃣ إضافة خطوة لتخزين الـ cache
-      - name: Cache Buildozer
+      - name: Cache buildozer & pip & local
         uses: actions/cache@v3
         with:
           path: |
             ~/.buildozer
             test_app/.buildozer
+            ~/.local
+            ~/.cache/pip
           key: buildozer-${{ runner.os }}-${{ hashFiles('test_app/buildozer.spec') }}
           restore-keys: |
             buildozer-${{ runner.os }}-
 
-      # 3️⃣ تشغيل الحاوية الجاهزة لبناء APK
-      - name: Build APK using existing Docker container
+      - name: Show cache contents (debug)
         run: |
-          docker run --rm -v ${{ github.workspace }}:/app lamideag-buildozer \
-          bash -c "cd /app && buildozer android debug"
+          echo "HOME=$HOME"
+          ls -la $HOME/.buildozer || true
+          ls -la test_app/.buildozer || true
+          du -sh $HOME/.buildozer || true
 
-      # 4️⃣ رفع APK كـ artifact لتتمكن من تحميله
-      - name: Upload APK
-        uses: actions/upload-artifact@v3
+      - name: Build APK using Docker (mount caches into container)
+        run: |
+          # mount runner ~/.buildozer into container /root/.buildozer
+          # mount runner ~/.local into container /root/.local (pip user installs)
+          # mount workspace into /app
+          docker run --rm \
+            -v $HOME/.buildozer:/root/.buildozer \
+            -v $HOME/.local:/root/.local \
+            -v $HOME/.cache/pip:/root/.cache/pip \
+            -v ${{ github.workspace }}:/app \
+            lamideag-buildozer \
+            bash -lc "cd /app && buildozer android debug"
+        # ملاحظة: $HOME في runner يعادل /home/runner
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: MyApp-APK
+          name: buildozer-artifacts
           path: test_app/bin/*.apk
