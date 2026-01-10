@@ -1,38 +1,32 @@
-# ==========================
-# Dockerfile Kivy -> APK باستخدام صورة Buildozer الرسمية
-# ==========================
-FROM ghcr.io/kivy/buildozer:latest
+# استخدام صورة Ubuntu كقاعدة
+FROM ubuntu:latest
 
-# --- تحديث النظام وتثبيت الأدوات الضرورية ---
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    software-properties-common \
-    openjdk-17-jdk \
-    wget unzip zip git build-essential libssl-dev libffi-dev \
-    python3-dev libncurses5 libncurses5-dev libgl1-mesa-dev xz-utils sudo && \
-    rm -rf /var/lib/apt/lists/*
+# تثبيت الأدوات الأساسية
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    openjdk-8-jdk \
+    build-essential \
+    git \
+    unzip \
+    curl
 
-# --- تثبيت Buildozer و Cython (آخر نسخة) ---
-RUN pip install --upgrade pip wheel setuptools cython buildozer
+# تثبيت Buildozer واعتماده
+RUN pip3 install --upgrade pip && \
+    pip3 install buildozer
 
-# --- تعيين متغيرات البيئة لـ Android SDK و Java ---
-ENV ANDROID_HOME=/opt/android-sdk
-ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/build-tools/33.0.2
-ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+# تثبيت Android SDK و NDK
+RUN curl -o android-sdk.zip https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip && \
+    unzip android-sdk.zip -d /opt/android-sdk-linux && \
+    rm android-sdk.zip
 
-# --- تثبيت Android SDK Command Line Tools (أحدث نسخة) ---
-RUN mkdir -p $ANDROID_HOME/cmdline-tools && \
-    cd $ANDROID_HOME/cmdline-tools && \
-    wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip && \
-    unzip cmdline-tools.zip && \
-    rm cmdline-tools.zip && \
-    mv cmdline-tools latest
+# تعيين البيئة
+ENV ANDROID_HOME=/opt/android-sdk-linux
+ENV PATH=$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$PATH
 
-# --- قبول تراخيص Android SDK تلقائيًا ---
-RUN yes | sdkmanager --licenses
+# تثبيت SDK و NDK
+RUN yes | sdkmanager --licenses && \
+    sdkmanager "platform-tools" "platforms;android-30" "build-tools;30.0.3" "ndk;21.3.6528147"
 
-# --- تثبيت أدوات SDK المطلوبة للبناء ---
-RUN sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653" "cmake;3.22.1"
-
-# --- تهيئة نقطة الدخول (يمكنك استدعاء Buildozer) ---
-COPY entrypoint.py /action/entrypoint.py
-ENTRYPOINT ["/action/entrypoint.py"]
+# تحديد المسار الخاص بالمشروع
+WORKDIR /app
