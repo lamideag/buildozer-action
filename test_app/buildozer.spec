@@ -8,7 +8,7 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 
 version = 0.1
-requirements = python3,kivy,pyjnius
+requirements = python3,kivy,pyjnius @ git+https://github.com/kivy/pyjnius.git@main
 
 orientation = portrait
 fullscreen = 0
