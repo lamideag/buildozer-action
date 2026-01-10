@@ -1,4 +1,4 @@
-name: Build Android APK (Persistent cache, faster)
+name: Build Android APK (Better persistent cache)
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # ---------- GLOBAL cache: stable, manual-bump key ----------
+      # ---------- 1) GLOBAL cache (stable key) ----------
       - name: Restore global cache (SDK/NDK/Buildozer/Gradle/.local)
         id: cache-global
         uses: actions/cache@v4
@@ -28,13 +28,13 @@ jobs:
             ~/.buildozer
             ~/.gradle
             ~/.local
-          # مفتاح ثابت: غيّره يدوياً (v3->v4) عند رغبتك في إفراغ الكاش
-          key: buildozer-global-v3-${{ runner.os }}
+          # مفتاح ثابت: غيّره يدوياً (v1->v2) عند رغبتك في إفراغ الكاش
+          key: buildozer-global-v1-${{ runner.os }}
           restore-keys: |
-            buildozer-global-v3-${{ runner.os }}-
+            buildozer-global-v1-${{ runner.os }}-
             buildozer-global-${{ runner.os }}-
 
-      # ---------- PIP cache: tied to buildozer.spec (wheels) ----------
+      # ---------- 2) per-spec cache (pip wheels etc.) ----------
       - name: Restore pip cache (per-spec)
         id: cache-pip
         uses: actions/cache@v4
@@ -48,14 +48,17 @@ jobs:
         run: |
           echo "CACHE-GLOBAL-HIT=${{ steps.cache-global.outputs.cache-hit }}"
           echo "CACHE-PIP-HIT=${{ steps.cache-pip.outputs.cache-hit }}"
-          echo "---- CHECK ~/.buildozer (trimmed) ----"
+          echo "---- ~/.buildozer (trimmed listing) ----"
           if [ -d "$HOME/.buildozer" ]; then
             find "$HOME/.buildozer" -maxdepth 2 -type d -print | head -n 60 || true
             du -sh "$HOME/.buildozer" || true
           else
             echo "~/.buildozer missing"
           fi
-          echo "---- CHECK ~/.local/bin ----"
+          echo "---- ~/.gradle wrapper dists (first entries) ----"
+          ls -la ~/.gradle/wrapper/dists || true
+          du -sh ~/.gradle || true
+          echo "---- ~/.local/bin (installed user binaries) ----"
           ls -la ~/.local/bin || true
           echo "---- End debug ----"
 
@@ -80,17 +83,35 @@ jobs:
             libsqlite3-dev libncurses-dev
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: Install Python tools (system-wide so Buildozer finds them)
+      - name: Install Cython & Buildozer (system-wide so Buildozer detects Cython)
         run: |
           python3 -m pip install --upgrade pip setuptools wheel
-          # نثبت Cython و Buildozer system-wide (بدون --user) لكي يتم اكتشاف cython بواسطة Buildozer
           sudo python3 -m pip install --upgrade "cython==0.29.33" buildozer
+
       - name: Verify cython & buildozer presence
         run: |
-          which cython || true
+          echo "which cython: $(which cython || true)"
           cython --version || true
-          which buildozer || true
+          echo "which buildozer: $(which buildozer || true)"
           buildozer --version || true
+
+      - name: Ensure buildozer.spec has fixed Android versions (reduces downloads)
+        run: |
+          SPEC="${GITHUB_WORKSPACE}/${{ env.WORKDIR }}/buildozer.spec"
+          if [ -f "$SPEC" ]; then
+            # Remove any existing android.* lines to avoid duplicates
+            sed -i '/^android.api/ d' "$SPEC" || true
+            sed -i '/^android.minapi/ d' "$SPEC" || true
+            sed -i '/^android.sdk/ d' "$SPEC" || true
+            sed -i '/^android.ndk/ d' "$SPEC" || true
+            sed -i '/^android.build_tools_version/ d' "$SPEC" || true
+            # Append stable values (adjust these if you need different versions)
+            printf '\n# Pinned by CI: stable android toolchain to reuse cache\nandroid.api = 31\nandroid.minapi = 21\nandroid.sdk = 33\nandroid.ndk = 25b\nandroid.build_tools_version = 33.0.2\n' >> "$SPEC"
+            echo "Updated $SPEC with pinned android.api/android.sdk/android.ndk"
+            tail -n 20 "$SPEC" || true
+          else
+            echo "No buildozer.spec found at $SPEC"
+          fi
 
       - name: Print environment (basic)
         run: |
@@ -99,15 +120,7 @@ jobs:
           python3 --version
           java -version || true
 
-      - name: Verify cached SDK/NDK locations (help debug)
-        run: |
-          echo "Check possible NDK/SDK within ~/.buildozer"
-          ls -la ~/.buildozer || true
-          ls -la ~/.buildozer/android || true
-          ls -la ~/.buildozer/android/ndk || true
-          ls -la ~/.buildozer/android/platform || true
-
-      - name: Build (use cache, do not clean)
+      - name: Build (only build, reuse cache, no clean)
         working-directory: ${{ env.WORKDIR }}
         run: |
           set -o pipefail
@@ -115,8 +128,8 @@ jobs:
           ls -la ~/.buildozer || true
           du -sh ~/.buildozer || true
 
-          # IMPORTANT: use --no-clean so cached build outputs (p4a artifacts, ndk, etc.) are reused
-          buildozer -v android debug --no-clean 2>&1 | tee buildozer-output.log
+          # Use --no-clean to preserve and reuse p4a/NDK artifacts from cache
+          buildozer -v android debug --no-clean --log-level=2 2>&1 | tee buildozer-output.log
           rc=${PIPESTATUS[0]}
           echo "BUILD_EXIT_CODE=$rc" >> $GITHUB_OUTPUT
           if [ "$rc" -ne 0 ]; then
@@ -145,4 +158,3 @@ jobs:
             **/*.apk
             **/*.aab
           if-no-files-found: warn
-
