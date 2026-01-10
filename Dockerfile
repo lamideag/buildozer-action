@@ -1,4 +1,4 @@
-# ==========================
+  # ==========================
 # Dockerfile لبناء تطبيقات Kivy/Buildozer
 # ==========================
 
@@ -35,10 +35,16 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # --------------------------
-# تثبيت Buildozer + Python requirements
+# إنشاء بيئة افتراضية لتثبيت Buildozer
 # --------------------------
-RUN pip3 install --upgrade pip --break-system-packages && \
-    pip3 install buildozer --break-system-packages
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# --------------------------
+# تثبيت Buildozer داخل البيئة الافتراضية
+# --------------------------
+RUN pip install --upgrade pip && \
+    pip install buildozer
 
 # --------------------------
 # تنزيل Android SDK Command line tools
@@ -77,4 +83,3 @@ WORKDIR /app
 # مثال:
 # docker build -t buildozer-android .
 # docker run --rm -v /path/to/your/project:/app buildozer-android buildozer android debug
-
