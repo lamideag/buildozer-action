@@ -4,7 +4,6 @@ on:
   push:
     branches: [ main, master ]
 
-
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -36,9 +35,6 @@ jobs:
 
       - name: Build APK using Docker (mount caches into container)
         run: |
-          # mount runner ~/.buildozer into container /root/.buildozer
-          # mount runner ~/.local into container /root/.local (pip user installs)
-          # mount workspace into /app
           docker run --rm \
             -v $HOME/.buildozer:/root/.buildozer \
             -v $HOME/.local:/root/.local \
@@ -46,7 +42,6 @@ jobs:
             -v ${{ github.workspace }}:/app \
             lamideag-buildozer \
             bash -lc "cd /app && buildozer android debug"
-        # ملاحظة: $HOME في runner يعادل /home/runner
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
