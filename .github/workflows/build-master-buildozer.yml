@@ -19,6 +19,7 @@ jobs:
         run: |
           docker run --rm -v ${{ github.workspace }}:/app lamideag-buildozer \
           bash -c "cd /app && buildozer android debug"
+          
 
       # 3️⃣ رفع APK كـ artifact لتتمكن من تحميله
       - name: Upload APK
