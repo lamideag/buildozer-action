@@ -1,4 +1,4 @@
-  # ==========================
+# ==========================
 # Dockerfile لبناء تطبيقات Kivy/Buildozer
 # ==========================
 
@@ -39,6 +39,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 # --------------------------
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
+
+# --------------------------
+# تعطيل التحقق من الجذر في Buildozer
+# --------------------------
+ENV BUILD_ROOT=1
 
 # --------------------------
 # تثبيت Buildozer داخل البيئة الافتراضية
