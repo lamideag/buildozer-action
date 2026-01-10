@@ -1,16 +1,23 @@
-# استخدام صورة Ubuntu كقاعدة
-FROM ubuntu:latest
+# ==========================
+# Dockerfile لبناء تطبيقات Kivy/Buildozer
+# ==========================
 
-# تثبيت الأدوات الأساسية
-RUN apt-get update && apt-get install -y \
+FROM ubuntu:22.04
+
+# --------------------------
+# إعداد المتطلبات الأساسية
+# --------------------------
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
-    openjdk-8-jdk \
+    python3-venv \
+    openjdk-11-jdk \
     build-essential \
     git \
     unzip \
     curl \
     wget \
+    zip \
     libncurses5-dev \
     libstdc++6 \
     zlib1g-dev \
@@ -25,36 +32,49 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     libgdbm-dev \
     libncursesw5-dev \
-    libsqlite3-dev
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# تثبيت Buildozer
-RUN pip3 install --upgrade pip && \
-    pip3 install buildozer
+# --------------------------
+# تثبيت Buildozer + Python requirements
+# --------------------------
+RUN pip3 install --upgrade pip --break-system-packages && \
+    pip3 install buildozer --break-system-packages
 
-# تثبيت Android SDK و NDK
-RUN mkdir -p /opt/android-sdk/cmdline-tools && \
-    wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O /tmp/cmdline-tools.zip && \
-    unzip /tmp/cmdline-tools.zip -d /opt/android-sdk/cmdline-tools && \
-    rm /tmp/cmdline-tools.zip && \
-    mkdir -p /opt/android-sdk/cmdline-tools/latest && \
-    mv /opt/android-sdk/cmdline-tools/cmdline-tools/* /opt/android-sdk/cmdline-tools/latest/
+# --------------------------
+# تنزيل Android SDK Command line tools
+# --------------------------
+RUN mkdir -p /opt/android-sdk/cmdline-tools
+WORKDIR /opt/android-sdk/cmdline-tools
+RUN wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O cmdline-tools.zip && \
+    unzip cmdline-tools.zip && \
+    mv cmdline-tools latest && \
+    rm cmdline-tools.zip
 
-# تعيين البيئة
-ENV ANDROID_HOME=/opt/android-sdk/cmdline-tools/latest
-ENV PATH=$ANDROID_HOME/bin:$PATH
-ENV ANDROID_SDK_ROOT=$ANDROID_HOME
+# --------------------------
+# إعداد متغيرات البيئة
+# --------------------------
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH
 
+# --------------------------
 # قبول تراخيص SDK
-RUN yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+# --------------------------
+RUN yes | sdkmanager --licenses
 
-# تثبيت الأدوات المطلوبة (SDK و NDK)
-RUN /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-30" "build-tools;30.0.3" "ndk;21.3.6528147"
+# --------------------------
+# تثبيت أدوات SDK المطلوبة
+# --------------------------
+RUN sdkmanager "platform-tools" "platforms;android-31" "build-tools;31.0.0" "ndk;25.2.9519653"
 
-# تحديد المسار الخاص بالمشروع
+# --------------------------
+# تحديد مجلد المشروع داخل الحاوية
+# --------------------------
 WORKDIR /app
 
-# نسخ ملفات المشروع إلى الحاوية
-COPY . /app
+# --------------------------
+# نسخة اختبارية: Buildozer يعمل الآن داخل الحاوية
+# --------------------------
+# مثال:
+# docker build -t buildozer-android .
+# docker run --rm -v /path/to/your/project:/app buildozer-android buildozer android debug
 
-# تشغيل Buildozer لبناء APK
-CMD buildozer android debug
