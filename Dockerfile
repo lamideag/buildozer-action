@@ -30,13 +30,13 @@ RUN mkdir -p /opt/android-sdk/cmdline-tools && \
 
 # إعداد متغيرات البيئة للـ Android SDK
 ENV ANDROID_HOME=/opt/android-sdk
-ENV PATH=$ANDROID_HOME/cmdline-tools/tools/bin:$ANDROID_HOME/platform-tools:$PATH
+ENV PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
 
 # قبول تراخيص SDK
-RUN yes | sdkmanager --licenses
+RUN yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
 
 # تثبيت الأدوات المطلوبة
-RUN sdkmanager "platform-tools" "platforms;android-30" "build-tools;30.0.3" "ndk;21.3.6528147"
+RUN /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-30" "build-tools;30.0.3" "ndk;21.3.6528147"
 
 # إعداد مسار المشروع
 WORKDIR /app
