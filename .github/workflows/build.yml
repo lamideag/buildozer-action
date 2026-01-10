@@ -1,4 +1,4 @@
-name: Build Android APK (Better persistent cache)
+name: Build Android APK (Persistent cache, faster)
 
 on:
   push:
@@ -28,10 +28,10 @@ jobs:
             ~/.buildozer
             ~/.gradle
             ~/.local
-          # مفتاح ثابت: لا يتغير عند كل commit — يضمن إعادة استخدام SDK/NDK/Gradle
-          key: buildozer-global-v2-${{ runner.os }}
+          # مفتاح ثابت: غيّره يدوياً (v3->v4) عند رغبتك في إفراغ الكاش
+          key: buildozer-global-v3-${{ runner.os }}
           restore-keys: |
-            buildozer-global-v2-${{ runner.os }}-
+            buildozer-global-v3-${{ runner.os }}-
             buildozer-global-${{ runner.os }}-
 
       # ---------- PIP cache: tied to buildozer.spec (wheels) ----------
@@ -48,14 +48,14 @@ jobs:
         run: |
           echo "CACHE-GLOBAL-HIT=${{ steps.cache-global.outputs.cache-hit }}"
           echo "CACHE-PIP-HIT=${{ steps.cache-pip.outputs.cache-hit }}"
-          echo "---- LIST ~/.buildozer (trimmed) ----"
+          echo "---- CHECK ~/.buildozer (trimmed) ----"
           if [ -d "$HOME/.buildozer" ]; then
-            find "$HOME/.buildozer" -maxdepth 2 -type d -print | head -n 40 || true
+            find "$HOME/.buildozer" -maxdepth 2 -type d -print | head -n 60 || true
             du -sh "$HOME/.buildozer" || true
           else
             echo "~/.buildozer missing"
           fi
-          echo "---- LIST ~/.local/bin ----"
+          echo "---- CHECK ~/.local/bin ----"
           ls -la ~/.local/bin || true
           echo "---- End debug ----"
 
@@ -80,13 +80,17 @@ jobs:
             libsqlite3-dev libncurses-dev
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: Install buildozer (user)
+      - name: Install Python tools (system-wide so Buildozer finds them)
         run: |
           python3 -m pip install --upgrade pip setuptools wheel
-          # نثبت Buildozer فقط؛ دع Buildozer يدير p4a داخليًا (أقل تعارضاً)
-          python3 -m pip install --user --upgrade buildozer
-      - name: Add pip user bin to PATH
-        run: echo "${HOME}/.local/bin" >> $GITHUB_PATH
+          # نثبت Cython و Buildozer system-wide (بدون --user) لكي يتم اكتشاف cython بواسطة Buildozer
+          sudo python3 -m pip install --upgrade "cython==0.29.33" buildozer
+      - name: Verify cython & buildozer presence
+        run: |
+          which cython || true
+          cython --version || true
+          which buildozer || true
+          buildozer --version || true
 
       - name: Print environment (basic)
         run: |
@@ -98,9 +102,10 @@ jobs:
       - name: Verify cached SDK/NDK locations (help debug)
         run: |
           echo "Check possible NDK/SDK within ~/.buildozer"
+          ls -la ~/.buildozer || true
           ls -la ~/.buildozer/android || true
-          ls -la ~/.buildozer/android/platform || true
           ls -la ~/.buildozer/android/ndk || true
+          ls -la ~/.buildozer/android/platform || true
 
       - name: Build (use cache, do not clean)
         working-directory: ${{ env.WORKDIR }}
@@ -140,3 +145,4 @@ jobs:
             **/*.apk
             **/*.aab
           if-no-files-found: warn
+
