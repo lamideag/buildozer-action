@@ -1,54 +1,142 @@
-name: Build
+name: Build Android APK (Better persistent cache)
+
 on:
   push:
-    branches-ignore:
-      - data
-      - gh-pages
-    tags:
-      - '**'
-  pull_request:
-    branches-ignore:
-      - data
-      - gh-pages
+    branches: [ master ]
+  workflow_dispatch:
 
 jobs:
-  # Build job. Builds app for Android with Buildozer
   build-android:
-    name: Build for Android
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    env:
+      WORKDIR: test_app
+      APP_ANDROID_ACCEPT_SDK_LICENSE: "1"
+      BUILDOZER_WARN_ON_ROOT: "0"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          path: master
+          fetch-depth: 0
 
-      - name: Build with Buildozer
-        uses: ./master # REPLACE WITH ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
+      # ---------- 1) GLOBAL cache (stable key) ----------
+      - name: Restore global cache (SDK/NDK/Buildozer/Gradle/.local)
+        id: cache-global
+        uses: actions/cache@v4
         with:
-          repository_root: master
-          workdir: test_app
-          buildozer_version: stable
+          path: |
+            ~/.buildozer
+            ~/.gradle
+            ~/.local
+            ~/.cache/pip
+          # ثابت: لا يتغير مع buildozer.spec — يحفظ SDK/NDK وGradle بين runs
+          key: buildozer-global-v1-${{ runner.os }}
 
-      - name: Upload artifacts
+      # ---------- 2) per-spec cache (optional finer cache) ----------
+      - name: Restore spec cache (pip wheels etc.)
+        id: cache-spec
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ${{ github.workspace }}/.buildozer  # احتياطي إن أردت
+          # مفتاح يعتمد على buildozer.spec لتحديث حين تغيّر الحل
+          key: buildozer-spec-${{ runner.os }}-${{ hashFiles('**/buildozer.spec') }}
+          restore-keys: |
+            buildozer-spec-${{ runner.os }}-
+
+      - name: Print cache hit info and directories (debug)
+        run: |
+          echo "CACHE-GLOBAL-HIT=${{ steps.cache-global.outputs.cache-hit }}"
+          echo "CACHE-SPEC-HIT=${{ steps.cache-spec.outputs.cache-hit }}"
+          echo "---- ~/.buildozer (first 10 entries) ----"
+          ls -la ~/.buildozer || true
+          du -sh ~/.buildozer || true
+          echo "---- ~/.gradle wrapper dists (first entries) ----"
+          ls -la ~/.gradle/wrapper/dists || true
+          du -sh ~/.gradle || true
+          echo "---- ~/.local/bin (installed user binaries) ----"
+          ls -la ~/.local/bin || true
+          echo "---- End debug ----"
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install minimal system deps
+        run: |
+          sudo apt-get update --fix-missing
+          sudo apt-get install -y --no-install-recommends \
+            python3-pip python3-dev build-essential git unzip zip curl ca-certificates \
+            openjdk-17-jdk-headless autoconf automake libtool m4 pkg-config \
+            libssl-dev libffi-dev zlib1g-dev libbz2-dev liblzma-dev \
+            libsqlite3-dev libncurses-dev
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Install buildozer & p4a (user install)
+        run: |
+          python3 -m pip install --upgrade pip setuptools wheel
+          python3 -m pip install --user --upgrade "cython==0.29.33" virtualenv
+          python3 -m pip install --user --upgrade buildozer python-for-android
+      - name: Add pip user bin to PATH
+        run: echo "${HOME}/.local/bin" >> $GITHUB_PATH
+
+      - name: Print environment (basic)
+        run: |
+          echo "Which buildozer: $(which buildozer || true)"
+          buildozer --version || true
+          python3 --version
+          java -version || true
+
+      - name: Build (only build, no deploy/run)
+        working-directory: ${{ env.WORKDIR }}
+        run: |
+          set -o pipefail
+          # show what's inside ~/.buildozer before building
+          echo "Contents of ~/.buildozer before build:"
+          ls -la ~/.buildozer || true
+          du -sh ~/.buildozer || true
+
+          # run build
+          buildozer -v android debug 2>&1 | tee buildozer-output.log
+          rc=${PIPESTATUS[0]}
+          echo "BUILD_EXIT_CODE=$rc" >> $GITHUB_OUTPUT
+          if [ "$rc" -ne 0 ]; then
+            echo "Build failed. Tail:"
+            tail -n 400 buildozer-output.log || true
+            exit $rc
+          fi
+
+      - name: Find APKs
+        id: find_apks
+        run: |
+          find . -type f \( -iname "*.apk" -o -iname "*.aab" \) -print > /tmp/apks.txt || true
+          if [ -s /tmp/apks.txt ]; then
+            echo "artifact_path=$(head -n 1 /tmp/apks.txt)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload logs & artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: package
-          path: ${{ steps.buildozer.outputs.filename }}
+          name: buildozer-artifacts
+          path: |
+            buildozer-output.log
+            ~/.buildozer/**
+            ~/.gradle/**
+            ./.buildozer/**/*
+            **/*.apk
+            **/*.aab
+          if-no-files-found: warn
 
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          path: data
-          ref: data # Branch name
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          architecture: x64
 
-      - name: Push binary to data branch
-        if: github.event_name == 'push'
-        run: python master/.ci/move_binary.py "${{ steps.buildozer.outputs.filename }}" master data bin
+
+
