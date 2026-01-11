@@ -1,6 +1,6 @@
 from kivy.app import App
 from kivy.uix.label import Label
-print("hello")
+print("hell")
 
 class MyApp(App):
     def build(self):
