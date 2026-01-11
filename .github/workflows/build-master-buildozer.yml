@@ -2,62 +2,38 @@ name: Build Kivy APK
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build-apk:
     runs-on: ubuntu-latest
     env:
-      # إذا احتجت تغيير مجلد التطبيق، عدّل هذا المتغير (الافتراضي هنا test_app)
       APP_DIR: test_app
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Cache buildozer & pip & local
+      - name: Cache buildozer
         uses: actions/cache@v3
         with:
           path: |
             ~/.buildozer
-            ${HOME}/.local
-            ${HOME}/.cache/pip
-            ${GITHUB_WORKSPACE}/${{ env.APP_DIR }}/.buildozer
+            ~/.cache/pip
           key: buildozer-${{ runner.os }}-${{ hashFiles(env.APP_DIR + '/buildozer.spec') }}
-          restore-keys: |
-            buildozer-${{ runner.os }}-
 
-      - name: Build Docker image
-        run: docker build -t lamideag-buildozer .
-
-      - name: Show debug info (paths & buildozer.spec)
+      - name: Build APK using prebuilt image
         run: |
-          echo "HOME=$HOME"
-          echo "Workspace: $GITHUB_WORKSPACE"
-          ls -la $HOME || true
-          find . -maxdepth 3 -name buildozer.spec -print || true
-
-      - name: Build APK using Docker (mount caches into container)
-        run: |
-          # mounts:
-          # - runner ~/.buildozer  -> container /root/.buildozer
-          # - runner ~/.local      -> container /root/.local
-          # - runner ~/.cache/pip  -> container /root/.cache/pip
           docker run --rm \
             -v $HOME/.buildozer:/root/.buildozer \
-            -v $HOME/.local:/root/.local \
             -v $HOME/.cache/pip:/root/.cache/pip \
             -v ${{ github.workspace }}:/app \
-            lamideag-buildozer \
-            "cd /app/${{ env.APP_DIR }} && /opt/venv/bin/buildozer android debug"
+            ghcr.io/lamideag/buildozer-action:latest \
+            bash -lc "cd /app/${{ env.APP_DIR }} && buildozer android debug"
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: buildozer-artifacts
+          name: apk
           path: ${{ env.APP_DIR }}/bin/*.apk
