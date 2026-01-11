@@ -38,7 +38,7 @@ jobs:
           key: buildozer-${{ runner.os }}-${{ hashFiles(env.APP_DIR + '/buildozer.spec') }}
 
       - name: Verify container (informational)
-        shell: bash -l {0}
+        shell: bash
         run: |
           echo "Running inside container"
           buildozer --version || true
@@ -49,7 +49,7 @@ jobs:
           echo "PATH=$PATH"
 
       - name: Ensure Android SDK / build-tools and accept licenses (if sdkmanager present)
-        shell: bash -l {0}
+        shell: bash
         run: |
           set -e
           export ANDROID_HOME="${ANDROID_HOME}"
@@ -70,7 +70,7 @@ jobs:
 
       - name: Build APK (try run as non-root user, fallback to root with auto-accept)
         working-directory: ${{ github.workspace }}/${{ env.APP_DIR }}
-        shell: bash -l {0}
+        shell: bash
         run: |
           set -euo pipefail
           cd "${GITHUB_WORKSPACE}/${APP_DIR}"
