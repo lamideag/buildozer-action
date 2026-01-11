@@ -4,11 +4,24 @@ on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
-  
+
+# Allow the runner to read packages (GHCR) using the built-in GITHUB_TOKEN
+permissions:
+  contents: read
+  packages: read
 
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+
+    # Use your private image from GHCR as the job container
+    container:
+      image: ghcr.io/lamideag/buildozer:latest
+      # optional: set credentials explicitly when image is in other account/org
+      # credentials:
+      #   username: ${{ github.actor }}
+      #   password: ${{ secrets.GHCR_PAT }}
+
     env:
       APP_DIR: test_app
 
@@ -22,16 +35,15 @@ jobs:
           path: |
             ~/.buildozer
             ~/.cache/pip
+            ~/.cache
           key: buildozer-${{ runner.os }}-${{ hashFiles(env.APP_DIR + '/buildozer.spec') }}
 
-      - name: Build APK using prebuilt image
+      - name: Build APK
+        # the container's workspace is mounted at $GITHUB_WORKSPACE (/github/workspace)
+        working-directory: ${{ github.workspace }}/${{ env.APP_DIR }}
         run: |
-          docker run --rm \
-            -v $HOME/.buildozer:/root/.buildozer \
-            -v $HOME/.cache/pip:/root/.cache/pip \
-            -v ${{ github.workspace }}:/app \
-            ghcr.io/lamideag/buildozer-action:latest \
-            bash -lc "cd /app/${{ env.APP_DIR }} && buildozer android debug"
+          # ensure buildozer and python env are available in the image
+          buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
