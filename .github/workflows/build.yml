@@ -15,7 +15,7 @@ jobs:
 
     container:
       image: ghcr.io/lamideag/buildozer:latest
-      # يفضل لاحقًا استخدام
+      # لاحقًا استخدام
 
     env:
       APP_DIR: test_app
