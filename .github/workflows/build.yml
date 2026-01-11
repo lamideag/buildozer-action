@@ -13,7 +13,6 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
 
-    # استخدم صورتك الخاصة من GHCR
     container:
       image: ghcr.io/lamideag/buildozer:latest
 
@@ -21,7 +20,6 @@ jobs:
       APP_DIR: test_app
       APP_ANDROID_ACCEPT_SDK_LICENSE: 1
       BUILDOZER_WARN_ON_ROOT: 0
-      # مسار افتراضي لمكان SDK داخل الحاوية إن وُجد
       ANDROID_HOME: /home/user/.buildozer/android/platform/android-sdk
 
     steps:
@@ -36,7 +34,7 @@ jobs:
             ~/.cache/pip
           key: buildozer-${{ runner.os }}-${{ hashFiles(env.APP_DIR + '/buildozer.spec') }}
 
-      - name: Verify container (informational)
+      - name: Verify container
         shell: bash
         run: |
           echo "Running inside container"
@@ -47,64 +45,21 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "PATH=$PATH"
 
-      - name: Ensure Android SDK / build-tools and accept licenses (if sdkmanager present)
+      - name: Ensure Android SDK and licenses
         shell: bash
         run: |
-          set -e
-          export ANDROID_HOME="${ANDROID_HOME}"
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
-
-          echo "Checking for build-tools 36.1.0 ..."
-          if [ -d "$ANDROID_HOME/build-tools/36.1.0" ]; then
-            echo "build-tools;36.1.0 present"
-          else
-            if command -v sdkmanager >/dev/null 2>&1; then
-              echo "sdkmanager found — accepting licenses and installing required components..."
-              yes | sdkmanager --licenses || true
-              sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.1.0" || true
-            else
-              echo "sdkmanager not found in PATH; assuming SDK is baked into the image or will be installed by Buildozer."
-            fi
+          if command -v sdkmanager >/dev/null 2>&1; then
+            yes | sdkmanager --licenses || true
+            sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.1.0" || true
           fi
 
-      - name: Build APK (try run as non-root user, fallback to root with auto-accept)
+      - name: Build APK (root fallback)
         working-directory: ${{ github.workspace }}/${{ env.APP_DIR }}
         shell: bash
         run: |
-          set -euo pipefail
-          cd "${GITHUB_WORKSPACE}/${APP_DIR}"
-
-          echo "Preparing BUILD_CMD and user-switch attempts..."
-          BUILD_CMD='printf "y\n" | buildozer android debug --no-confirm'
-
-          # Attempt to find a usable non-root user inside the image.
-          # Add or remove usernames in this list to match your image.
-          CANDIDATES=(buildozer builduser build buildbox user ubuntu)
-          for u in "${CANDIDATES[@]}"; do
-            if id "$u" >/dev/null 2>&1; then
-              echo "Found candidate user: $u"
-              # Try runuser, su, sudo in that order
-              if command -v runuser >/dev/null 2>&1; then
-                echo "Using runuser -u $u"
-                runuser -u "$u" -- bash -lc "cd '${GITHUB_WORKSPACE}/${APP_DIR}' && ${BUILD_CMD}"
-                exit 0
-              elif command -v su >/dev/null 2>&1; then
-                echo "Using su $u"
-                su "$u" -s /bin/bash -c "cd '${GITHUB_WORKSPACE}/${APP_DIR}' && ${BUILD_CMD}"
-                exit 0
-              elif command -v sudo >/dev/null 2>&1; then
-                echo "Using sudo -u $u"
-                sudo -u "$u" bash -lc "cd '${GITHUB_WORKSPACE}/${APP_DIR}' && ${BUILD_CMD}"
-                exit 0
-              else
-                echo "No available method to switch to $u (runuser/su/sudo)"
-              fi
-            fi
-          done
-
-          echo "No usable non-root user or switching failed -> running as root (fallback) with automatic 'y' answer"
-          # Fallback: run as root but answer prompts automatically
-          eval "${BUILD_CMD}"
+          # لنحافظ على إجابة 'y' لأي سؤال أثناء التشغيل كـ root
+          printf "y\n" | buildozer android debug --no-confirm || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
