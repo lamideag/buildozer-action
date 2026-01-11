@@ -16,7 +16,6 @@ jobs:
     # استخدم صورتك الخاصة من GHCR
     container:
       image: ghcr.io/lamideag/buildozer:latest
-      # لاحقاً يفضّل استبدال :latest بـ digest لضمان ثبات الصورة
 
     env:
       APP_DIR: test_app
