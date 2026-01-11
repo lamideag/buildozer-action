@@ -15,7 +15,7 @@ jobs:
 
     container:
       image: ghcr.io/lamideag/buildozer:latest
-      # لاحقًا استخدام
+      # لاحقًا يمكن استخدام digest لضمان نفس النسخة
 
     env:
       APP_DIR: test_app
@@ -31,19 +31,29 @@ jobs:
           echo "Running inside image:"
           buildozer --version
           which buildozer
+          whoami
+          id
 
-      - name: Build APK
+      - name: Build APK (as non-root user)
         working-directory: ${{ github.workspace }}/${{ env.APP_DIR }}
         run: |
-          buildozer android debug --no-confirm
+          # جرب تشغيل buildozer كمستخدم موجود داخل الصورة
+          if su user -s /bin/bash -c "buildozer --version >/dev/null 2>&1"; then
+            su user -s /bin/bash -c "cd $GITHUB_WORKSPACE/${APP_DIR} && buildozer android debug --no-confirm"
+          elif runuser -u user -- bash -lc "buildozer --version >/dev/null 2>&1"; then
+            runuser -u user -- bash -lc "cd $GITHUB_WORKSPACE/${APP_DIR} && buildozer android debug --no-confirm"
+          elif sudo -u user bash -lc "buildozer --version >/dev/null 2>&1"; then
+            sudo -u user bash -lc "cd $GITHUB_WORKSPACE/${APP_DIR} && buildozer android debug --no-confirm"
+          else
+            echo "Fallback: buildozer will run as root (may fail)"
+            buildozer android debug --no-confirm
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: apk
           path: ${{ env.APP_DIR }}/bin/*.apk
-
-
 
 
 
