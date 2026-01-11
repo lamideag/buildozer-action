@@ -46,7 +46,8 @@ jobs:
             sudo -u user bash -lc "cd $GITHUB_WORKSPACE/${APP_DIR} && buildozer android debug --no-confirm"
           else
             echo "Fallback: buildozer will run as root (may fail)"
-            buildozer android debug --no-confirm
+            printf 'y\n' | buildozer android debug --no-confirm
+
           fi
 
       - name: Upload APK
