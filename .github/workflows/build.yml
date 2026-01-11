@@ -5,6 +5,10 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+defaults:
+  run:
+    shell: bash
+
 permissions:
   contents: read
   packages: read
@@ -13,24 +17,32 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
 
+    # استخدم صورتك الخاصة من GHCR
     container:
       image: ghcr.io/lamideag/buildozer:latest
-      # لاحقًا يفضّل استخدام digest لضمان ثبات الصورة
+      # يفضل لاحقاً استبدال :latest بـ digest لضمان ثبات الصورة
 
     env:
       APP_DIR: test_app
       APP_ANDROID_ACCEPT_SDK_LICENSE: 1
       BUILDOZER_WARN_ON_ROOT: 0
-      # مسار محتمل لموقع الـ SDK المستخدم بواسطة buildozer داخل الحاوية
       ANDROID_HOME: /home/user/.buildozer/android/platform/android-sdk
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Verify container (important)
+      - name: Cache buildozer & pip
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.buildozer
+            ~/.cache/pip
+          key: buildozer-${{ runner.os }}-${{ hashFiles(env.APP_DIR + '/buildozer.spec') }}
+
+      - name: Verify container (informational)
         run: |
-          echo "Running inside image:"
+          echo "Running inside container"
           buildozer --version || true
           which buildozer || true
           echo "whoami: $(whoami)"
@@ -38,62 +50,33 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "PATH=$PATH"
 
-      - name: Ensure Android SDK / build-tools exist and accept licenses
+      - name: Check for sdkmanager (fail early with clear advice)
         run: |
-          # ضبط متغيرات PATH لادوات cmdline-tools إن وجدت
-          export ANDROID_HOME=${ANDROID_HOME}
-          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
-
-          echo "Checking for Aidl / build-tools..."
-          if [ -x "$ANDROID_HOME/build-tools/36.1.0/aapt" ] || [ -x "$ANDROID_HOME/build-tools/36.1.0/aapt2" ]; then
-            echo "build-tools;36.1.0 already present"
-          else
-            echo "build-tools not found, attempting to install via sdkmanager (non-interactive)..."
-
-            if command -v sdkmanager >/dev/null 2>&1; then
-              # قبول كافة التراخيص ثم تثبيت الأدوات المطلوبة
-              yes | sdkmanager --licenses || true
-              sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.1.0" || true
-            else
-              echo "sdkmanager not found in PATH — skipping automatic install. If build fails, include SDK in image."
-            fi
+          if ! command -v sdkmanager >/dev/null 2>&1; then
+            echo "::warning::sdkmanager not found in image PATH. This image likely does NOT include Android cmdline-tools / SDK."
+            echo "You have two options:"
+            echo "  1) Rebuild your GHCR image to include Android cmdline-tools & build-tools (recommended)."
+            echo "  2) Use a different image that has sdkmanager."
+            echo "Failing the job to avoid hidden/partial installs."
+            exit 1
           fi
+          echo "sdkmanager found: $(command -v sdkmanager)"
 
-      - name: Build APK (try run as non-root user, fallback to root with auto-accept)
+      - name: Ensure Android SDK / build-tools and accept licenses (if sdkmanager present)
+        run: |
+          set -e
+          export ANDROID_HOME="${ANDROID_HOME}"
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.1.0" || true
+
+      - name: Build APK (non-interactive)
         working-directory: ${{ github.workspace }}/${{ env.APP_DIR }}
         run: |
           set -euo pipefail
-          cd "${GITHUB_WORKSPACE}/${APP_DIR}"
+          printf "y\n" | buildozer android debug --no-confirm
 
-          echo "Preparing to run buildozer..."
-          # اجعل buildozer يجيب بنعم تلقائياً على أي سؤال (خاصة سؤال root)
-          BUILD_CMD='printf "y\n" | buildozer android debug --no-confirm'
-
-          # قائمة أسماء مستخدمين محتملة داخل الصورة - جرّبها
-          for u in buildozer builduser build buildbox user ubuntu; do
-            if id "$u" >/dev/null 2>&1; then
-              echo "Found non-root user: $u. Attempting to run build as $u"
-              if command -v runuser >/dev/null 2>&1; then
-                runuser -u "$u" -- bash -lc "cd '${GITHUB_WORKSPACE}/${APP_DIR}' && ${BUILD_CMD}"
-                exit 0
-              elif command -v su >/dev/null 2>&1; then
-                su "$u" -s /bin/bash -c "cd '${GITHUB_WORKSPACE}/${APP_DIR}' && ${BUILD_CMD}"
-                exit 0
-              elif command -v sudo >/dev/null 2>&1; then
-                sudo -u "$u" bash -lc "cd '${GITHUB_WORKSPACE}/${APP_DIR}' && ${BUILD_CMD}"
-                exit 0
-              else
-                echo "No method to switch user (runuser/su/sudo) available; will fallback to root"
-                break
-              fi
-            fi
-          done
-
-          echo "No non-root user usable or switching failed — running as root with auto-accept (fallback)"
-          # تشغيل كـ root مع تمرير 'y' لأي سؤال تفاعلي
-          eval "${BUILD_CMD}"
-
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: apk
