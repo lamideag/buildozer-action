@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/lamideag/buildozer:latest
-      # لاحقًا يفضّل استخدام digest لضمان ثبات الصورة
+      # لاحقًا يفضّل استخدام digest  ثبات الصورة
     env:
       APP_DIR: test_app
       APP_ANDROID_ACCEPT_SDK_LICENSE: 1
