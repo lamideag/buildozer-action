@@ -18,7 +18,7 @@ jobs:
       APP_DIR: test_app
       APP_ANDROID_ACCEPT_SDK_LICENSE: 1
       BUILDOZER_WARN_ON_ROOT: 0
-      # مسار محتمل لموقع الـ SDK المستخدم بواسطة buildozer داخل الحاوية
+      # مسار محتمل لموقع الـ SDK المستخدم بواسطة buildozer الحاوية
       ANDROID_HOME: /github/home/.buildozer/android/platform/android-sdk
     steps:
       - name: Checkout source
