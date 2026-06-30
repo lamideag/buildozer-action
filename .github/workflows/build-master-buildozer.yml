@@ -77,7 +77,7 @@ EOF
           set -eo pipefail
           echo "Building with buildozer..."
 
-          # شغّل buildozer كـ root بصح بـ stdin مزود دايماً بـ "y"
+          # شغّل buildozer كـ root بصح بـ stdin مزود
           # yes بدل printf لأنها أوثق مع الأسئلة المتكررة
           yes | buildozer android debug
 
