@@ -1,41 +1,86 @@
-name: Build Kivy APK
+name: Build Kivy APK (Docker Image)
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
+
 permissions:
   contents: read
   packages: read
-  
+
 jobs:
-  build-apk:
+  build-android:
     runs-on: ubuntu-latest
-    # Use your private image from GHCR as the job container
     container:
       image: ghcr.io/lamideag/buildozer:latest
-      # optional: set credentials explicitly when image is in other account/org
-      # credentials:
-      #   username: ${{ github.actor }}
-      #   password: ${{ secrets.GHCR_PAT }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     env:
       APP_DIR: test_app
+      APP_ANDROID_ACCEPT_SDK_LICENSE: 1
+      BUILDOZER_WARN_ON_ROOT: 1
+      ANDROID_HOME: /github/home/.buildozer/android/platform/android-sdk
+
     steps:
-      - name: Checkout repo
+      - name: Checkout source
         uses: actions/checkout@v4
-      - name: Cache buildozer
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.buildozer
-            ~/.cache/pip
-            ~/.cache
-          key: buildozer-${{ runner.os }}-${{ hashFiles(format('{0}/buildozer.spec', env.APP_DIR)) }}
+
+      - name: Verify container (debug info)
+        shell: bash
+        run: |
+          echo "Running inside image:"
+          buildozer --version || true
+          which buildozer || true
+          echo "whoami: $(whoami)"
+          id || true
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "PATH=$PATH"
+
+      - name: Accept all Android SDK licenses
+        shell: bash
+        run: |
+          export ANDROID_HOME=${ANDROID_HOME}
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+
+          mkdir -p "$ANDROID_HOME/licenses"
+
+          cat > "$ANDROID_HOME/licenses/android-sdk-license" << 'EOF'
+24333f8a63b6825ea9c5514f83c2829b004d1fee
+d56f5187479451eabf01fb78af6dfcb131a6481e7
+8933bad161af4178b1185d1a37fbf41ea5269c55
+EOF
+
+          cat > "$ANDROID_HOME/licenses/android-sdk-preview-license" << 'EOF'
+84831b9409646a918e30573bab4c9c91346d8abd
+EOF
+
+          cat > "$ANDROID_HOME/licenses/android-sdk-arm-dbt-license" << 'EOF'
+859f317696f67ef3d7f30a50a5560e7834b43903
+EOF
+
+          cat > "$ANDROID_HOME/licenses/google-gdk-license" << 'EOF'
+33b6a2b64607f11b759f320ef9dff4ae5c47d97a
+EOF
+
+          if command -v sdkmanager >/dev/null 2>&1; then
+            yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          fi
+
+          echo "Licenses written. Contents of licenses dir:"
+          ls -la "$ANDROID_HOME/licenses" || true
+
       - name: Build APK
-        # the container's workspace is mounted at $GITHUB_WORKSPACE (/github/workspace)
+        shell: bash
         working-directory: ${{ github.workspace }}/${{ env.APP_DIR }}
         run: |
-          # ensure buildozer and python env are available in the image
-          buildozer android debug
+          set -eo pipefail
+          echo "Building with buildozer..."
+
+          # شغّل buildozer كـ root بصح بـ stdin مزود دايماً بـ "y"
+          # yes بدل printf لأنها أوثق مع الأسئلة المتكررة
+          yes | buildozer android debug
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
