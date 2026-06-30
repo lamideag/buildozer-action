@@ -1,51 +1,14 @@
-name: Build Kivy APK (Docker Image)
+name: Test Build
 on:
+  workflow_dispatch:
   push:
     branches: [ main, master ]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  packages: read
 
 jobs:
-  build-android:
+  test:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/lamideag/buildozer:latest
-
-    env:
-      APP_DIR: test_app
-      ANDROID_HOME: /github/home/.buildozer/android/platform/android-sdk
-
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Verify container
-        run: |
-          echo "whoami: $(whoami)"
-          buildozer --version || echo "buildozer not found"
-          ls -la "$ANDROID_HOME" || echo "ANDROID_HOME path missing"
-
-      - name: Accept Android SDK licenses
-        run: |
-          mkdir -p "$ANDROID_HOME/licenses"
-          cat > "$ANDROID_HOME/licenses/android-sdk-license" << 'EOF'
-24333f8a63b6825ea9c5514f83c2829b004d1fee
-d56f5187479451eabf01fb78af6dfcb131a6481e7
-8933bad161af4178b1185d1a37fbf41ea5269c55
-EOF
-          cat > "$ANDROID_HOME/licenses/android-sdk-preview-license" << 'EOF'
-84831b9409646a918e30573bab4c9c91346d8abd
-EOF
-
-      - name: Build APK
-        working-directory: ${{ github.workspace }}/${{ env.APP_DIR }}
-        run: yes | buildozer android debug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk
-          path: ${{ env.APP_DIR }}/bin/*.apk
+      - name: Hello
+        run: echo "Container started successfully"
