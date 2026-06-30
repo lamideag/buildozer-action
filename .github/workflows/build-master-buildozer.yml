@@ -13,32 +13,23 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/lamideag/buildozer:latest
+
     env:
       APP_DIR: test_app
-      APP_ANDROID_ACCEPT_SDK_LICENSE: 1
-      BUILDOZER_WARN_ON_ROOT: 1
       ANDROID_HOME: /github/home/.buildozer/android/platform/android-sdk
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Verify container (debug info)
-        shell: bash
+      - name: Verify container
         run: |
-          echo "Running inside image:"
-          buildozer --version || true
-          which buildozer || true
           echo "whoami: $(whoami)"
-          id || true
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "PATH=$PATH"
+          buildozer --version || echo "buildozer not found"
+          ls -la "$ANDROID_HOME" || echo "ANDROID_HOME path missing"
 
-      - name: Accept all Android SDK licenses
-        shell: bash
+      - name: Accept Android SDK licenses
         run: |
-          export ANDROID_HOME=${ANDROID_HOME}
-          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
           mkdir -p "$ANDROID_HOME/licenses"
           cat > "$ANDROID_HOME/licenses/android-sdk-license" << 'EOF'
 24333f8a63b6825ea9c5514f83c2829b004d1fee
@@ -48,25 +39,10 @@ EOF
           cat > "$ANDROID_HOME/licenses/android-sdk-preview-license" << 'EOF'
 84831b9409646a918e30573bab4c9c91346d8abd
 EOF
-          cat > "$ANDROID_HOME/licenses/android-sdk-arm-dbt-license" << 'EOF'
-859f317696f67ef3d7f30a50a5560e7834b43903
-EOF
-          cat > "$ANDROID_HOME/licenses/google-gdk-license" << 'EOF'
-33b6a2b64607f11b759f320ef9dff4ae5c47d97a
-EOF
-          if command -v sdkmanager >/dev/null 2>&1; then
-            yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          fi
-          echo "Licenses written. Contents of licenses dir:"
-          ls -la "$ANDROID_HOME/licenses" || true
 
       - name: Build APK
-        shell: bash
         working-directory: ${{ github.workspace }}/${{ env.APP_DIR }}
-        run: |
-          set -eo pipefail
-          echo "Building with buildozer..."
-          yes | buildozer android debug
+        run: yes | buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
