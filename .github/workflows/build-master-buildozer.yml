@@ -3,7 +3,7 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
-# Allow the runner to read packages (GHCR) using the built-in GITHUB_TOKEN
+# Allow the runner to read packages (GHCR) using the built-in GITHUB_TOKE
 permissions:
   contents: read
   packages: read
