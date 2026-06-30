@@ -1,20 +1,16 @@
 name: Build Kivy APK
-
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-
 # Allow the runner to read packages (GHCR) using the built-in GITHUB_TOKEN
 permissions:
   contents: read
   packages: read
   
-
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-
     # Use your private image from GHCR as the job container
     container:
       image: ghcr.io/lamideag/buildozer:latest
@@ -22,14 +18,11 @@ jobs:
       # credentials:
       #   username: ${{ github.actor }}
       #   password: ${{ secrets.GHCR_PAT }}
-
     env:
       APP_DIR: test_app
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
       - name: Cache buildozer
         uses: actions/cache@v3
         with:
@@ -37,15 +30,13 @@ jobs:
             ~/.buildozer
             ~/.cache/pip
             ~/.cache
-          key: buildozer-${{ runner.os }}-${{ hashFiles(env.APP_DIR + '/buildozer.spec') }}
-
+          key: buildozer-${{ runner.os }}-${{ hashFiles(format('{0}/buildozer.spec', env.APP_DIR)) }}
       - name: Build APK
         # the container's workspace is mounted at $GITHUB_WORKSPACE (/github/workspace)
         working-directory: ${{ github.workspace }}/${{ env.APP_DIR }}
         run: |
           # ensure buildozer and python env are available in the image
           buildozer android debug
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
