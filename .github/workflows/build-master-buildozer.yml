@@ -13,9 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/lamideag/buildozer:latest
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
     env:
       APP_DIR: test_app
       APP_ANDROID_ACCEPT_SDK_LICENSE: 1
@@ -42,31 +39,24 @@ jobs:
         run: |
           export ANDROID_HOME=${ANDROID_HOME}
           export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
-
           mkdir -p "$ANDROID_HOME/licenses"
-
           cat > "$ANDROID_HOME/licenses/android-sdk-license" << 'EOF'
 24333f8a63b6825ea9c5514f83c2829b004d1fee
 d56f5187479451eabf01fb78af6dfcb131a6481e7
 8933bad161af4178b1185d1a37fbf41ea5269c55
 EOF
-
           cat > "$ANDROID_HOME/licenses/android-sdk-preview-license" << 'EOF'
 84831b9409646a918e30573bab4c9c91346d8abd
 EOF
-
           cat > "$ANDROID_HOME/licenses/android-sdk-arm-dbt-license" << 'EOF'
 859f317696f67ef3d7f30a50a5560e7834b43903
 EOF
-
           cat > "$ANDROID_HOME/licenses/google-gdk-license" << 'EOF'
 33b6a2b64607f11b759f320ef9dff4ae5c47d97a
 EOF
-
           if command -v sdkmanager >/dev/null 2>&1; then
             yes | sdkmanager --licenses > /dev/null 2>&1 || true
           fi
-
           echo "Licenses written. Contents of licenses dir:"
           ls -la "$ANDROID_HOME/licenses" || true
 
@@ -76,9 +66,6 @@ EOF
         run: |
           set -eo pipefail
           echo "Building with buildozer..."
-
-          # شغّل buildozer كـ root بصح بـ stdin مزود
-          # yes بدل printf لأنها أوثق مع الأسئلة المتكررة
           yes | buildozer android debug
 
       - name: Upload APK
