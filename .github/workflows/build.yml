@@ -2,6 +2,7 @@ name: Build Kivy APK (Docker Image)
 on:
   push:
     branches: [ main, master ]
+    
   workflow_dispatch:
 
 permissions:
